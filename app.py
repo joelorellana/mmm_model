@@ -3,17 +3,16 @@ Author: Joel Orellana
 last update: 18-apr-2024"""
 
 import io
+import numpyro
+import holidays
+import pickle
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import jax.numpy as jnp
-import numpyro
-import holidays
 from datetime import timedelta
-
-import pickle
 from lightweight_mmm import lightweight_mmm
 from lightweight_mmm import optimize_media
 from lightweight_mmm import plot
@@ -151,8 +150,6 @@ if model_file is not None:
                     prices,
                     end_date=end_date,
                 )
-                # You can display the results here using st.write() or any other Streamlit functions
-                st.success("Optimal budget allocation calculated.", icon="✅")
                 previous_budget_allocation = round(prices * previous_media_allocation, 2)
                 optimal_budget_allocation = round(prices * solution.x, 2)
                 table_data = pd.DataFrame({
@@ -172,18 +169,23 @@ if model_file is not None:
                 total_optimal = optimal_budget_allocation.sum()
                 total_previous = previous_budget_allocation.sum()
                 table_data.loc[len(table_data)] = ['Total', total_optimal, total_previous]
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(table_data)
-                with col2:
-                    st.write(plot.plot_pre_post_budget_allocation_comparison(media_mix_model=mmm,
-                                        kpi_with_optim=solution['fun'],
-                                        kpi_without_optim=kpi_without_optim,
-                                        optimal_buget_allocation=optimal_budget_allocation,
-                                        previous_budget_allocation=previous_budget_allocation,
-                                        figure_size=(10,8),
-                                        channel_names = media_names,
-                                        ))
+                # Display the table only if total_optimal and total_previous are approximately equal
+                if abs(total_optimal - total_previous) < 10:
+                    st.success("Optimal budget allocation calculated.", icon="✅")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(table_data)
+                    with col2:
+                        st.write(plot.plot_pre_post_budget_allocation_comparison(media_mix_model=mmm,
+                                            kpi_with_optim=solution['fun'],
+                                            kpi_without_optim=kpi_without_optim,
+                                            optimal_buget_allocation=optimal_budget_allocation,
+                                            previous_budget_allocation=previous_budget_allocation,
+                                            figure_size=(10,8),
+                                            channel_names = media_names,
+                                            ))
+                else: # raise an streamlit error indicating that the budget is not realistic with the historical data
+                    st.error("The budget is not realistic with the historical data. Please change the budget or the number of weeks to predict.")
 
             except Exception as e:
                 st.error(f"Failed to run budget allocator: {e}") 
