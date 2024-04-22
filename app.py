@@ -1,6 +1,6 @@
 """Demo to show how to use lightweight_mmm in Streamlit.
 Author: Joel Orellana
-last update: 18-apr-2024"""
+last update: 22-apr-2024"""
 
 import io
 import numpyro
@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import jax.numpy as jnp
+import tempfile
 from datetime import timedelta
 from lightweight_mmm import lightweight_mmm
 from lightweight_mmm import optimize_media
@@ -19,11 +20,18 @@ from lightweight_mmm import plot
 from lightweight_mmm import preprocessing
 from lightweight_mmm import utils
 from sklearn.metrics import mean_absolute_percentage_error
-from sklearn.pipeline import Pipeline   
+from sklearn.pipeline import Pipeline
+from google.cloud import storage
+
 
 # streamlit settings
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='text-align: center; color: white;'>Media Mix Model Analyzer</h1>", unsafe_allow_html=True)
+BUCKET_NAME = 'a0-mmm-models'
+CLIENT = storage.Client() # Initialize a client for Google Cloud Storage
+
+
+
 
 def add_holiday_columns_to_array(end_date,time_period):
     df = pd.DataFrame({'week': [pd.to_datetime(end_date) + pd.DateOffset(weeks=x) for x in range(1, time_period + 1)]})
@@ -77,9 +85,32 @@ def budget_allocator(n_weeks_to_predict, budget_to_allocate, mmm, media_scaler, 
     seed=1)
     return solution, kpi_without_optim, previous_media_allocation
 
+def select_model():
+    bucket = CLIENT.get_bucket(BUCKET_NAME) # Get the bucket object
+    blobs = bucket.list_blobs() # List all objects in the bucket
+    pkl_files_list = [blob.name for blob in blobs if blob.name.endswith('.pkl')]
+    print(pkl_files_list)
+    return pkl_files_list
+
+@st.cache_data
+def read_model(selected_model):
+    # get a copy in current directory of the mmm model
+    blob_name = f"{selected_model}"
+    bucket = CLIENT.bucket(BUCKET_NAME)
+    blob = bucket.blob(blob_name)
+    # Create a temporary directory
+    temp_dir = tempfile.mkdtemp()
+    file_path = f"{temp_dir}/{select_model}"
+    
+    # Download the model file to the temporary directory
+    blob.download_to_filename(file_path)
+    return file_path
+
+
 
 @st.cache_data(ttl=30)
-def load_model(model_file):
+def load_model(model_path):
+    model_file = open(model_path, 'rb')
     pipeline = pickle.load(model_file)
     name_model = pipeline.named_steps['name_model']
     start_date = pipeline.named_steps["start_date"]
@@ -91,6 +122,7 @@ def load_model(model_file):
     extra_scaler = pipeline.named_steps['extra_scaler']
     prices = pipeline.named_steps['prices']
     mmm = pipeline.named_steps['mmm']
+    media_contribution, roi_hat = mmm.get_posterior_metrics(target_scaler=target_scaler, cost_scaler=cost_scaler)
     plot1 = plot.plot_model_fit(mmm, target_scaler=target_scaler, digits=2)
     plot2 = plot.plot_response_curves(media_mix_model=mmm, target_scaler=target_scaler)
     plot3 = plot.plot_media_baseline_contribution_area_plot(media_mix_model=mmm,
@@ -98,31 +130,38 @@ def load_model(model_file):
                                                 fig_size=(30,10),
                                                 channel_names = media_names
                                                 )
-    
-    return name_model, start_date, end_date, media_scaler, target_scaler, media_names, cost_scaler, extra_scaler, prices, mmm, plot1, plot2, plot3
+    plot4 = plot.plot_bars_media_metrics(metric=roi_hat, metric_name=" ROI hat", channel_names=media_names)
+    plot5 = plot.plot_bars_media_metrics(metric=media_contribution, metric_name="Media Contribution Percentage", channel_names=media_names)
+
+    return name_model, start_date, end_date, media_scaler, target_scaler, media_names, cost_scaler, extra_scaler, prices, mmm, plot1, plot2, plot3, plot4, plot5
 
 
-# load a model
-model_file = st.file_uploader("Upload a model", type=["pkl"], key="model")
-if model_file is not None:
+
+
+
+
+model_list = select_model()
+selected_model = st.selectbox("Select a model from the list:", model_list, placeholder="Select a model", index=None) # default None
+if selected_model:
     with st.spinner("Loading model..."):
-        try:
-            name_model, start_date, end_date, media_scaler, target_scaler, media_names, cost_scaler, extra_scaler, prices, mmm, plot1, plot2, plot3 = load_model(model_file)
-            st.success(f"Model {name_model} loaded successfully!")
-            # adding model info 
-            st.info(f"Model was trained using data from {start_date} to {end_date} for {', '.join(media_names)}.")
-            # Create columns for the plots only if there is a model
-            st.markdown("<h3 style='text-align: center; color: white;'>Model Report</h3>", unsafe_allow_html=True)
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(plot1)
-            with col2:
-                st.write(plot2)
-            st.write(plot3)
-            
-        except Exception as e:
-            st.error(f"Failed to load model: {e}")
-            st.stop()
+        temp_file_model_path = read_model(selected_model)
+        name_model, start_date, end_date, media_scaler, target_scaler, media_names, cost_scaler, extra_scaler, prices, mmm, plot1, plot2, plot3, plot4, plot5 = load_model(temp_file_model_path)
+        st.success(f"Model {name_model} loaded successfully!")
+        # adding model info 
+        st.info(f"Model was trained using data from {start_date} to {end_date} for {', '.join(media_names)}.")
+        # Create columns for the plots only if there is a model
+        st.markdown("<h3 style='text-align: center; color: white;'>Model Report</h3>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(plot1)
+        with col2:
+            st.write(plot2)
+        st.write(plot3)
+        col3, col4 = st.columns(2)
+        with col3:
+            st.write(plot4)
+        with col4:
+            st.write(plot5)
             
     # new section Budget Allocator Predictor
     st.markdown("<h3 style='text-align: center; color: white;'>Budget Estimator</h3>", unsafe_allow_html=True)
@@ -191,4 +230,4 @@ if model_file is not None:
                 st.error(f"Failed to run budget allocator: {e}") 
 
 else:
-    st.error("Please upload a model file to proceed.")
+    st.error("Please select a trained model to proceed.")
