@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import jax.numpy as jnp
 import tempfile
+import os
 from datetime import timedelta
 from lightweight_mmm import lightweight_mmm
 from lightweight_mmm import optimize_media
@@ -22,14 +23,17 @@ from lightweight_mmm import utils
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.pipeline import Pipeline
 from google.cloud import storage
+from google.oauth2 import service_account
 
 
 # streamlit settings
 st.set_page_config(layout="wide")
 st.markdown("<h1 style='text-align: center; color: white;'>Media Mix Model Analyzer</h1>", unsafe_allow_html=True)
-BUCKET_NAME = 'a0-mmm-models'
-CLIENT = storage.Client() # Initialize a client for Google Cloud Storage
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["GOOGLE_CREDENTIALS"])
 
+BUCKET_NAME = 'a0-mmm-models'
+CLIENT = storage.Client(credentials=credentials) # Initialize a client for Google Cloud Storage
 
 
 
