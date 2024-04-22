@@ -22,6 +22,8 @@ from lightweight_mmm import utils
 from sklearn.metrics import mean_absolute_percentage_error
 from sklearn.pipeline import Pipeline
 from google.cloud import storage
+from st_files_connection import FilesConnection
+
 
 
 # streamlit settings
