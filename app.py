@@ -31,7 +31,7 @@ st.set_page_config(layout="wide")
 st.markdown("<h1 style='text-align: center; color: white;'>Media Mix Model Analyzer</h1>", unsafe_allow_html=True)
 BUCKET_NAME = 'a0-mmm-models'
 CLIENT = storage.Client() # Initialize a client for Google Cloud Storage
-st.info("CURRENTLY IN CONSTRUCTION.")
+st.info("CURRENTLY IN DEPLOYMENT...Please return.")
 
 
 
