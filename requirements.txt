@@ -18,6 +18,7 @@ GitPython==3.1.43
 google-cloud-storage
 google-pasta==0.2.0
 grpcio==1.62.1
+gcsfs
 h5netcdf==1.3.0
 h5py==3.10.0
 holidays
@@ -67,6 +68,7 @@ six==1.16.0
 smmap==5.0.1
 statsmodels==0.14.1
 streamlit==1.32.2
+st-files-connection
 tenacity==8.2.3
 tensorboard==2.16.2
 tensorboard-data-server==0.7.2
